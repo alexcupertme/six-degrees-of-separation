@@ -1,0 +1,22 @@
+* {
+  padding: 0;
+  margin: 0;
+}
+
+#root {
+  background-color: #2f3131;
+  background-image: url("./assets/bg.png");
+  background-size: 80%;
+  background-position-y: 10px;
+  background-position-x: 10px;
+  background-repeat: repeat;
+}
+
+body {
+  margin: 0;
+  display: block;
+  place-items: center;
+  overflow: hidden;
+  min-width: 320px;
+  min-height: 100vh;
+}
