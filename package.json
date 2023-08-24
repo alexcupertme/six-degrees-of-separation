@@ -10,12 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@pixi-essentials/cull": "^2.0.0",
     "@pixi/react": "^7.1.0",
-    "@pixi/react-animated": "^7.1.0",
+    "@xstate/react": "^3.2.2",
+    "gsap": "^3.12.2",
+    "pixi-cull": "^2.1.1",
+    "pixi-viewport": "^5.0.2",
     "pixi.js": "^7.2.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-spring": "^9.7.2"
+    "uuid": "^9.0.0",
+    "xstate": "^4.38.2"
   },
   "devDependencies": {
     "@types/react": "^18.2.15",

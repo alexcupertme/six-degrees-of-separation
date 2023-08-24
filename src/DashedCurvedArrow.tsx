@@ -1,10 +1,53 @@
-import { Point } from "pixi.js";
-import { DashedBezier } from "./DashedBezier";
+import { Point, SimpleRope, Texture } from "pixi.js";
+import { Assets } from "./common";
+import { Application } from "./pixi/Application";
+import { Viewport } from "./pixi/Viewport";
+
+export const calculateBezierPoints = (...controlPoints: Point[]) => {
+  const points = [];
+  const segmentCount = 30;
+  const tDelta = 1 / segmentCount;
+
+  for (let i = 0; i <= segmentCount; i++) {
+    const t = i * tDelta;
+    const { x, y } = getBezierCoordinate(controlPoints, t);
+    points.push(new Point(x, y));
+  }
+
+  return points;
+};
+
+/**
+ * Calculates the Bezier curve coordinate at a given parameter t.
+ *
+ * @param {Point[]} controlPoints - An array of control points.
+ * @param {number} t - The parameter value (0 to 1).
+ * @returns {Point} The coordinates of the Bezier curve at the given parameter t.
+ */
+export const getBezierCoordinate = (
+  controlPoints: Point[],
+  t: number
+): Point => {
+  if (controlPoints.length === 1) {
+    return controlPoints[0];
+  }
+
+  const nextLevelPoints = [];
+  for (let i = 0; i < controlPoints.length - 1; i++) {
+    const p0 = controlPoints[i];
+    const p1 = controlPoints[i + 1];
+    const x = (1 - t) * p0.x + t * p1.x;
+    const y = (1 - t) * p0.y + t * p1.y;
+    nextLevelPoints.push(new Point(x, y));
+  }
+
+  return getBezierCoordinate(nextLevelPoints, t);
+};
 
 /**
  * Get center point of line from given coordinates
  */
-const getCenterPoint = (pos1: Point, pos2: Point) => {
+export const getCenterPoint = (pos1: Point, pos2: Point) => {
   const centerPosX = (pos1.x + pos2.x) / 2;
   const centerPosY = (pos1.y + pos2.y) / 2;
 
@@ -19,7 +62,7 @@ const getCenterPoint = (pos1: Point, pos2: Point) => {
  * @param centerPoint center point
  * @returns
  */
-const getLongestControlPoints = (
+export const getLongestControlPoints = (
   point1: Point,
   point2: Point,
   centerPoint: Point
@@ -42,33 +85,35 @@ const getLongestControlPoints = (
     };
 };
 
-/**
- * Draws smooth curved arrow with two points
- * @param param0
- * @returns
- */
-export const DashedCurvedArrow = ({
-  pos1,
-  pos2,
-}: {
-  pos1: Point;
-  pos2: Point;
-}) => {
-  const centerPoint = getCenterPoint(pos1, pos2);
+export class DashedLine {
+  private _instance: SimpleRope;
 
-  const { startControlPoint, endControlPoint } = getLongestControlPoints(
-    pos1,
-    pos2,
-    centerPoint
-  );
+  constructor({ points }: { points: Point[] }) {
+    const rope = new SimpleRope(
+      Texture.from(Assets.DashedLine.Line),
+      points,
+      0.2
+    );
+    this._instance = rope;
 
-  return (
-    <DashedBezier
-      key={`${pos1.x}-${pos1.y}-${pos2.x}-${pos2.y}`}
-      points={[pos1, startControlPoint, endControlPoint, pos2]}
-      dashLength={8}
-      gapLength={8}
-      lineStyle={{ width: 0.5, color: 0xaba59d, alpha: 0.5 }}
-    />
-  );
-};
+    rope.eventMode = "none";
+
+    Application.getInstance().ticker.add((dt) => this.update(dt));
+  }
+
+  private update(deltaTime: number) {
+    this.updateVisibility(deltaTime);
+  }
+
+  private updateVisibility(deltaTime: number) {
+    if (Viewport.getInstance().scale.x < 0.4) {
+      this._instance.renderable = false;
+    } else {
+      this._instance.renderable = true;
+    }
+  }
+
+  public getInstance(): SimpleRope {
+    return this._instance;
+  }
+}

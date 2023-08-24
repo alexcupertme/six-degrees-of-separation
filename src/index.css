@@ -2,8 +2,10 @@
   padding: 0;
   margin: 0;
 }
-
-#root {
+html,
+body {
+  touch-action: none;
+  touch-action: pan-x pan-y;
   background-color: #2f3131;
   background-image: url("./assets/bg.png");
   background-size: 80%;
