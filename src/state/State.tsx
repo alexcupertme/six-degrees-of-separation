@@ -1,28 +1,30 @@
 import { Point } from "pixi.js";
+import { Edge } from "./Edge";
 import { Node } from "./Node";
 
 export class NodeState {
-  private _rootNode: Node;
-  private static _nextNodeId = 0;
+  private _nodes: Set<Node>;
+  private _edges: Set<Edge>;
 
-  constructor(rootNode: Node) {
-    this._rootNode = rootNode;
+  constructor(nodes: Node[], edges: Edge[]) {
+    this._nodes = new Set(nodes);
+    this._edges = new Set(edges);
   }
 
-  toArray(): Node[] {
-    return this._rootNode.toArray();
+  nodesToArray(): Node[] {
+    return Array.from(this._nodes);
   }
 
-  getNodeById(id: number): Node | null {
-    return this._rootNode.getNodeById(id);
+  edgesToArray(): Edge[] {
+    return Array.from(this._edges);
   }
 
-  getRootNode(): Node {
-    return this._rootNode;
+  addEdges(...edges: Edge[]) {
+    edges.forEach((e) => this._edges.add(e));
   }
 
-  private static generateUniqueNodeId(): number {
-    return this._nextNodeId++;
+  addNodes(...nodes: Node[]) {
+    nodes.forEach((n) => this._nodes.add(n));
   }
 
   static generate({
@@ -38,9 +40,8 @@ export class NodeState {
     minDistance?: number;
     averageDistance?: number;
   }): NodeState {
-    const rootNode = new Node(NodeState.generateUniqueNodeId(), center, null);
-    const nodeState = new NodeState(rootNode);
     const newPositions: Point[] = [];
+    const state = new NodeState([], []);
 
     const getRandomPosition = (parentPosition: Point) => {
       const angle = Math.random() * Math.PI * 2;
@@ -58,27 +59,33 @@ export class NodeState {
       return newPosition;
     };
 
-    const generateChildren = (parent: Node, depth: number) => {
-      if (depth === 0) {
-        return;
-      }
+    const generateChildren = (parent: Node, count: number) => {
+      const points = new Array(count)
+        .fill("")
+        .map(() => generateUniquePosition(parent.getReadonlyPoint()));
 
-      for (let i = 0; i < nodesPerLevel; i++) {
-        const uniquePosition = generateUniquePosition(
-          parent.getReadonlyPoint()
-        );
-        const childNode = new Node(
-          NodeState.generateUniqueNodeId(),
-          uniquePosition,
-          parent
-        );
-        parent.addChild(childNode);
-        generateChildren(childNode, depth - 1);
-      }
+      const childrenPair = points.map((p) => {
+        const node = new Node(p, []);
+        const edge = new Edge({ from: parent, to: node });
+        node.addEdgeReferences(edge);
+        return { node, edge };
+      });
+
+      state.addEdges(...childrenPair.map((c) => c.edge));
+      state.addNodes(...childrenPair.map((c) => c.node));
+
+      parent.addEdgeReferences(...childrenPair.map((c) => c.edge));
+
+      childrenPair.forEach((child) => {
+        if (newPositions.length < totalNodes) {
+          if (newPositions.length + nodesPerLevel < totalNodes) {
+            generateChildren(child.node, nodesPerLevel);
+          } else generateChildren(child.node, totalNodes - newPositions.length);
+        }
+      });
     };
 
-    generateChildren(rootNode, Math.ceil(Math.log(totalNodes / nodesPerLevel)));
-
-    return nodeState;
+    generateChildren(new Node(center, []), nodesPerLevel);
+    return state;
   }
 }

@@ -1,8 +1,10 @@
 import { gsap } from "gsap";
 import { Back } from "gsap/all";
+import { Viewport as PixiViewport } from "pixi-viewport";
 import {
   Container,
   FederatedPointerEvent,
+  Application as PixiApplication,
   Point,
   Sprite,
   Texture,
@@ -80,17 +82,14 @@ export class RoundedRect {
   private backgroundSprite: Sprite;
   private interactiveSprite: Sprite;
 
+  private viewport: PixiViewport;
+  private application: PixiApplication;
+
+  private stateValue: NodeState;
+
   private nodeReference: Node;
 
-  constructor({
-    position,
-    id,
-    node,
-  }: {
-    position: Point;
-    id: number;
-    node: Node;
-  }) {
+  constructor({ node }: { node: Node }) {
     const textureFile = (() => {
       const samples = [
         Assets.RoundedRect.MockBackground1,
@@ -118,7 +117,7 @@ export class RoundedRect {
     this.container.on("pointerup", () => this.handleMouseUp());
     this.container.on("tap", () => this.handleMouseUp());
     this.container.eventMode = "static";
-    this.container.position = position;
+    this.container.position = node.getReadonlyPoint();
     this.container.zIndex = 0;
     this.container.scale = DEFAULT_SCALE;
 
@@ -130,7 +129,7 @@ export class RoundedRect {
     this.backgroundSprite.alpha = 1;
     this.backgroundSprite.name = "Background";
 
-    this.stateMachine = createStateMachine(id);
+    this.stateMachine = createStateMachine(node.id);
     this.interpreter = interpret(this.stateMachine).start();
     this.interpreter.subscribe((state) =>
       this.handleStateTransition(state.value as NodeState)
@@ -139,7 +138,10 @@ export class RoundedRect {
     this.bounceAnimation = createBounceAnimation(this.container);
     this.showAnimation = createShowAnimation(this.interactiveSprite);
 
-    Application.getInstance().ticker.add((dt) => this.update(dt));
+    this.application = Application.getInstance();
+    this.viewport = Viewport.getInstance();
+
+    this.application.ticker.add((dt) => this.update(dt));
   }
 
   public getInstance(): Container {
@@ -165,33 +167,14 @@ export class RoundedRect {
   }
 
   private update(deltaTime: number) {
-    this.updateHittest(deltaTime);
-    this.updatePosition(deltaTime);
-  }
-
-  private updateHittest(deltaTime: number) {
-    if (
-      Viewport.getInstance().scale.x < 0.4 ||
-      !Viewport.getInstance().hitArea?.contains(
-        this.container.position.x,
-        this.container.position.y
-      )
-    ) {
-      this.container.eventMode = "none";
-    } else {
-      this.container.eventMode = "static";
-    }
-  }
-
-  private updatePosition(deltaTime: number) {
-    const viewport = Viewport.getInstance();
-    const app = Application.getInstance();
-    if (this.interpreter.getSnapshot().value === NodeState.DRAGGING) {
+    if (this.stateValue === NodeState.DRAGGING) {
       const newPosition = new Point(
-        (app.renderer.events.pointer.screenX - viewport.lastViewport!.x) /
-          viewport.lastViewport!.scaleX,
-        (app.renderer.events.pointer.screenY - viewport.lastViewport!.y) /
-          viewport.lastViewport!.scaleY
+        (this.application.renderer.events.pointer.screenX -
+          this.viewport.lastViewport!.x) /
+          this.viewport.lastViewport!.scaleX,
+        (this.application.renderer.events.pointer.screenY -
+          this.viewport.lastViewport!.y) /
+          this.viewport.lastViewport!.scaleY
       );
       this.nodeReference.changePoint(newPosition);
       this.container.position = newPosition;
@@ -199,6 +182,7 @@ export class RoundedRect {
   }
 
   private handleStateTransition(newValue: NodeState) {
+    this.stateValue = newValue;
     switch (newValue) {
       case NodeState.IDLE:
         this.showAnimation.reverse();

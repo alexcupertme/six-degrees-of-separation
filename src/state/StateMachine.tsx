@@ -39,7 +39,7 @@ export type NodeTypestate =
       context: NodeContext;
     };
 
-export const createStateMachine = (nodeId: number) =>
+export const createStateMachine = (nodeId: string) =>
   createMachine<
     NodeContext,
     NodeStateEvents,

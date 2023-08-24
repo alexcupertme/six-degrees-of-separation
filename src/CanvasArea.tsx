@@ -8,17 +8,17 @@ import { NodeState } from "./state/State";
 export class CanvasArea {
   constructor({ centerPosition }: { centerPosition: Point }) {
     const initialState = (() => {
-      const totalNodes = 400;
-      const nodesPerLevel = 4;
+      const totalNodes = 10000;
+      const nodesPerLevel = 40;
       return NodeState.generate({
         center: centerPosition,
         totalNodes,
         nodesPerLevel,
-        averageDistance: 4000,
+        averageDistance: 2000,
         minDistance: 0,
       });
     })();
-    console.log(initialState.toArray().length);
+    console.log(initialState.nodesToArray().length);
 
     const dashedLinesContainer = new Container();
     const nodesContainer = new Container();
@@ -29,10 +29,8 @@ export class CanvasArea {
     nodesContainer.eventMode = "passive";
 
     nodesContainer.addChild(
-      ...initialState.toArray().map((node, i) =>
+      ...initialState.nodesToArray().map((node, i) =>
         new RoundedRect({
-          position: node.getReadonlyPoint(),
-          id: i,
           node,
         }).getInstance()
       )
@@ -40,11 +38,8 @@ export class CanvasArea {
 
     dashedLinesContainer.addChild(
       ...initialState
-        .toArray()
-        .filter((n) => n.pathToParent.length)
-        .map((node) =>
-          new DashedLine({ points: node.pathToParent }).getInstance()
-        )
+        .edgesToArray()
+        .map((edge) => new DashedLine({ edge }).getInstance())
     );
     const viewport = Viewport.getInstance();
     Viewport.addChildren(dashedLinesContainer, nodesContainer);

@@ -1,38 +1,16 @@
 import { Point } from "pixi.js";
-import {
-  calculateBezierPoints,
-  getCenterPoint,
-  getLongestControlPoints,
-} from "../DashedCurvedArrow";
+import { v4 } from "uuid";
+import { Edge } from "./Edge";
 
 export class Node {
   private _point: Point;
-  id: number;
-  children: Node[] = [];
-  parent: Node | null;
-  pathToParent: Point[];
+  private _edges: Set<Edge>;
+  id: string;
 
-  constructor(id: number, point: Point, parent: Node | null) {
-    this.id = id;
+  constructor(point: Point, edges: Edge[]) {
+    this.id = v4();
     this._point = point;
-    this.parent = parent;
-
-    if (this.parent === null) this.pathToParent = [];
-    else {
-      const centerPoint = getCenterPoint(point, parent!.getReadonlyPoint());
-      const { startControlPoint, endControlPoint } = getLongestControlPoints(
-        point,
-        parent!.getReadonlyPoint(),
-        centerPoint
-      );
-
-      this.pathToParent = calculateBezierPoints(
-        point,
-        startControlPoint,
-        endControlPoint,
-        parent!.getReadonlyPoint()
-      );
-    }
+    this._edges = new Set(edges);
   }
 
   getReadonlyPoint(): Readonly<Point> {
@@ -43,60 +21,31 @@ export class Node {
     return this._point.clone();
   }
 
+  addEdgeReferences(...edges: Edge[]) {
+    edges.forEach((e) => this._edges.add(e));
+  }
+
+  removeEdge(edge: Edge) {
+    this._edges.delete(edge);
+  }
+
   changePoint(point: Point) {
     this._point.x = point.x;
     this._point.y = point.y;
 
-    this.recalculatePath();
-    this.children.forEach((c) => c.recalculatePath());
+    this._edges.forEach((e) => e.recalculatePath());
   }
 
-  recalculatePath() {
-    if (this.pathToParent.length) {
-      const centerPoint = getCenterPoint(
-        this._point,
-        this.parent!.getReadonlyPoint()
-      );
-      const { startControlPoint, endControlPoint } = getLongestControlPoints(
-        this._point,
-        this.parent!._point,
-        centerPoint
-      );
-      const newPoints = calculateBezierPoints(
-        this._point,
-        startControlPoint,
-        endControlPoint,
-        this.parent!._point
-      );
-      this.pathToParent.forEach((p, i) => {
-        p.x = newPoints[i].x;
-        p.y = newPoints[i].y;
-      });
-    }
-  }
-
-  addChild(child: Node) {
-    this.children.push(child);
-  }
-
-  toArray(): Node[] {
-    const result: Node[] = [this];
-    for (const child of this.children) {
-      result.push(...child.toArray());
-    }
-    return result;
-  }
-
-  getNodeById(id: number): Node | null {
-    if (this.id === id) {
-      return this;
-    }
-    for (const child of this.children) {
-      const foundNode = child.getNodeById(id);
-      if (foundNode) {
-        return foundNode;
-      }
-    }
-    return null;
-  }
+  // getNodeById(id: number): Node | null {
+  //   if (this.id === id) {
+  //     return this;
+  //   }
+  //   for (const child of this.children) {
+  //     const foundNode = child.getNodeById(id);
+  //     if (foundNode) {
+  //       return foundNode;
+  //     }
+  //   }
+  //   return null;
+  // }
 }
