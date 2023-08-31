@@ -1,4 +1,5 @@
 import { Point } from "pixi.js";
+import { v4 } from "uuid";
 import {
   calculateBezierPoints,
   getCenterPoint,
@@ -10,11 +11,13 @@ export class Edge {
   private pointsPath: Point[];
   private from: Node;
   private to: Node;
+  private _id: string;
 
   constructor({ from, to }: { from: Node; to: Node }) {
     this.from = from;
     this.to = to;
     this.pointsPath = this.calculatePointsPath();
+    this._id = v4();
   }
 
   calculatePointsPath() {
@@ -46,5 +49,16 @@ export class Edge {
 
   public getPath() {
     return this.pointsPath;
+  }
+
+  public getNodePair(): { from: Node; to: Node } {
+    return {
+      from: this.from,
+      to: this.to,
+    };
+  }
+
+  public get id() {
+    return this._id;
   }
 }

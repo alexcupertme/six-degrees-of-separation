@@ -6,12 +6,13 @@ html,
 body {
   touch-action: none;
   touch-action: pan-x pan-y;
-  background-color: #2f3131;
-  background-image: url("./assets/bg.png");
+  /* background-color: #2f3131; */
+  background-color: rgb(245, 237, 222);
+  /* background-image: url("./assets/bg.png");
   background-size: 80%;
   background-position-y: 10px;
   background-position-x: 10px;
-  background-repeat: repeat;
+  background-repeat: repeat; */
 }
 
 body {

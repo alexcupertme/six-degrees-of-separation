@@ -3,7 +3,7 @@ import { PixiPlugin } from "gsap/PixiPlugin";
 import * as PIXI from "pixi.js";
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { CanvasArea } from "./CanvasArea.tsx";
+import { CanvasArea } from "./components/CanvasArea";
 import "./index.css";
 
 CanvasArea;

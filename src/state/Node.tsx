@@ -36,16 +36,7 @@ export class Node {
     this._edges.forEach((e) => e.recalculatePath());
   }
 
-  // getNodeById(id: number): Node | null {
-  //   if (this.id === id) {
-  //     return this;
-  //   }
-  //   for (const child of this.children) {
-  //     const foundNode = child.getNodeById(id);
-  //     if (foundNode) {
-  //       return foundNode;
-  //     }
-  //   }
-  //   return null;
-  // }
+  getEdges(): Edge[] {
+    return Array.from(this._edges);
+  }
 }

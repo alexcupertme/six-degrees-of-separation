@@ -1,4 +1,4 @@
-import background from "../assets/bg.png";
+import background from "../assets/background.png";
 import line from "../assets/dashed_line.png";
 import clickedNode from "../assets/rect_clicked.png";
 import hoveredNode from "../assets/rect_hovered.png";

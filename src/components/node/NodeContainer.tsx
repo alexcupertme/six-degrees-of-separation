@@ -6,8 +6,6 @@ import {
   FederatedPointerEvent,
   Application as PixiApplication,
   Point,
-  Sprite,
-  Texture,
 } from "pixi.js";
 import {
   BaseActionObject,
@@ -18,17 +16,18 @@ import {
   TypegenDisabled,
   interpret,
 } from "xstate";
-import { Assets } from "./common";
-import { Colors, MouseButton, NodeEvents, NodeState } from "./common/Enums";
-import { Application } from "./pixi/Application";
-import { Viewport } from "./pixi/Viewport";
-import { Node } from "./state/Node";
 import {
   NodeContext,
   NodeStateEvents,
   NodeTypestate,
   createStateMachine,
-} from "./state/StateMachine";
+} from "../../state/StateMachine";
+import { MouseButton, NodeEvents, NodeState } from "./../../common/Enums";
+import { Application } from "./../../pixi/Application";
+import { Viewport } from "./../../pixi/Viewport";
+import { Node } from "./../../state/Node";
+import { BackgroundNodeSprite } from "./BackgroundNodeSprite";
+import { InteractiveNodeSprite } from "./InteractiveNodeSprite";
 
 const DEFAULT_SCALE = new Point(0.25, 0.25);
 const SELECTED_SCALE = new Point(0.3, 0.3);
@@ -44,17 +43,8 @@ const createBounceAnimation = (to: gsap.TweenTarget) => {
   });
 };
 
-const createShowAnimation = (to: gsap.TweenTarget) => {
-  return gsap.to(to, {
-    pixi: { alpha: 1 },
-    duration: 0.5,
-    paused: true,
-  });
-};
-
 export class RoundedRect {
   private bounceAnimation: gsap.core.Tween;
-  private showAnimation: gsap.core.Tween;
 
   private stateMachine: StateMachine<
     NodeContext,
@@ -64,6 +54,7 @@ export class RoundedRect {
     NodeTypestate
   >;
 
+  // Rewrite to simple State Machine
   private interpreter: Interpreter<
     NodeContext,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -79,55 +70,43 @@ export class RoundedRect {
   >;
 
   private container: Container;
-  private backgroundSprite: Sprite;
-  private interactiveSprite: Sprite;
+  private backgroundSprite: BackgroundNodeSprite;
+  private interactiveSprite: InteractiveNodeSprite;
 
   private viewport: PixiViewport;
   private application: PixiApplication;
 
-  private stateValue: NodeState;
+  private stateValue: NodeState = NodeState.INITIAL;
 
   private nodeReference: Node;
 
-  constructor({ node }: { node: Node }) {
-    const textureFile = (() => {
-      const samples = [
-        Assets.RoundedRect.MockBackground1,
-        Assets.RoundedRect.MockBackground2,
-        Assets.RoundedRect.MockBackground3,
-        Assets.RoundedRect.MockBackground4,
-      ];
-      return samples[Math.floor(Math.random() * samples.length)];
-    })();
+  public id: string;
 
+  constructor({ node }: { node: Node }) {
     this.nodeReference = node;
+    this.id = node.id;
 
     this.container = new Container();
-    this.backgroundSprite = new Sprite(Texture.from(textureFile));
-    this.interactiveSprite = new Sprite(
-      Texture.from(Assets.RoundedRect.DefaultStroke)
-    );
+    this.backgroundSprite = new BackgroundNodeSprite();
+    this.interactiveSprite = new InteractiveNodeSprite();
 
     // TODO: move these props to another classes
-    this.container.addChild(this.backgroundSprite, this.interactiveSprite);
+    this.container.addChild(
+      this.backgroundSprite.getInstance(),
+      this.interactiveSprite.getInstance()
+    );
 
     this.container.on("pointerover", () => this.handleMouseOver());
     this.container.on("pointerout", () => this.handleMouseOut());
     this.container.on("pointerdown", (e) => this.handleMouseDown(e));
     this.container.on("pointerup", () => this.handleMouseUp());
     this.container.on("tap", () => this.handleMouseUp());
-    this.container.eventMode = "static";
     this.container.position = node.getReadonlyPoint();
+    this.container.name = `node-container-${node.id}`;
+
+    this.container.eventMode = "static";
     this.container.zIndex = 0;
     this.container.scale = DEFAULT_SCALE;
-
-    this.interactiveSprite.anchor.set(0.5, 0.5);
-    this.interactiveSprite.alpha = 0;
-    this.interactiveSprite.name = "Interactive";
-
-    this.backgroundSprite.anchor.set(0.5, 0.5);
-    this.backgroundSprite.alpha = 1;
-    this.backgroundSprite.name = "Background";
 
     this.stateMachine = createStateMachine(node.id);
     this.interpreter = interpret(this.stateMachine).start();
@@ -136,7 +115,6 @@ export class RoundedRect {
     );
 
     this.bounceAnimation = createBounceAnimation(this.container);
-    this.showAnimation = createShowAnimation(this.interactiveSprite);
 
     this.application = Application.getInstance();
     this.viewport = Viewport.getInstance();
@@ -166,35 +144,37 @@ export class RoundedRect {
     this.interpreter.send({ type: NodeEvents.DRAGEND });
   }
 
-  private update(deltaTime: number) {
+  private update() {
     if (this.stateValue === NodeState.DRAGGING) {
-      const newPosition = new Point(
-        (this.application.renderer.events.pointer.screenX -
-          this.viewport.lastViewport!.x) /
-          this.viewport.lastViewport!.scaleX,
-        (this.application.renderer.events.pointer.screenY -
-          this.viewport.lastViewport!.y) /
-          this.viewport.lastViewport!.scaleY
+      this.container.dirty = true;
+      const newPosition = Viewport.localToViewportPoint(
+        this.application.renderer.events.pointer.screen
       );
+      this.container.position.set(newPosition.x, newPosition.y);
       this.nodeReference.changePoint(newPosition);
-      this.container.position = newPosition;
     }
+
+    // if (this.viewport.scale.x < 0.3) {
+    //   this.container.eventMode = "none";
+    // } else {
+    //   this.container.eventMode = "static";
+    // }
   }
 
   private handleStateTransition(newValue: NodeState) {
     this.stateValue = newValue;
     switch (newValue) {
       case NodeState.IDLE:
-        this.showAnimation.reverse();
+        this.interactiveSprite.hide();
         this.bounceAnimation.reverse();
         break;
       case NodeState.HOVERED:
-        this.showAnimation.restart();
-        this.interactiveSprite.tint = Colors.NODE_HOVER;
+        this.interactiveSprite.show();
+        this.interactiveSprite.setIsHovered();
         break;
       case NodeState.CLICKED:
         this.bounceAnimation.play();
-        this.interactiveSprite.tint = Colors.NODE_CLICK;
+        this.interactiveSprite.setIsClicked();
         break;
       case NodeState.DRAGGING:
         this.bounceAnimation.reverse();
