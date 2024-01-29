@@ -6,22 +6,22 @@ export class BackgroundContainer {
   constructor() {
     this.layers = [
       new BackgroundGridLayer({
-        scale: 0.3,
+        scale: 0.2,
         maxViewportVisibilityScale: 2,
-        minViewportVisibilityScale: 1,
+        minViewportVisibilityScale: 0.8,
       }),
       new BackgroundGridLayer({
-        scale: 0.6,
-        maxViewportVisibilityScale: 1,
-        minViewportVisibilityScale: 0.5,
+        scale: 0.4,
+        maxViewportVisibilityScale: 0.8,
+        minViewportVisibilityScale: 0.4,
       }),
       new BackgroundGridLayer({
-        scale: 0.9,
-        maxViewportVisibilityScale: 0.5,
+        scale: 0.8,
+        maxViewportVisibilityScale: 0.4,
         minViewportVisibilityScale: 0.2,
       }),
       new BackgroundGridLayer({
-        scale: 1.5,
+        scale: 1.6,
         maxViewportVisibilityScale: 0.2,
         minViewportVisibilityScale: 0.01,
       }),

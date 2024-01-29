@@ -1,156 +1,138 @@
-import { Container, Point, SimpleRope, Ticker } from "pixi.js";
+import { Container, Point, Ticker } from "pixi.js";
 import { Viewport } from "../pixi/Viewport";
-import { NodeState } from "../state/State";
+import { Edge } from "../state/Edge";
+import { NodeMap } from "../state/Map";
+import { Node } from "../state/Node";
 import { DashedLine } from "./DashedCurvedArrow";
+import { Queue } from "./Queue";
 import { RoundedRect } from "./node/NodeContainer";
 
 // Responses for garbage collection, adding new nodes, add to culling / remove from culling / maximum nodes on display
 export class NodesEntityManager {
   private frameCounter: number = 0;
-  private maxEntityCount: number = 3000;
-  private maxQueueSize: number = 1000;
-  private chunkSize: number = 10;
+  private batchSize: number = 100;
+  private renderDistance: number = 24;
 
-  private maxDistance: number = 5000;
+  private maxDistance: () => number = () =>
+    Math.floor(
+      (10000 * (this.renderDistance / 8)) /
+        ((this.nodesContainer.children.length +
+          this.edgesContainer.children.length) /
+          1600)
+    );
 
-  private state: NodeState;
+  private map: NodeMap;
 
-  private nodesQueue: {
-    remaining: RoundedRect[];
-    counter: number;
-  } = { remaining: [], counter: 0 };
+  private nodesQueue: Queue<Node> = new Queue();
+  private edgesQueue: Queue<Edge> = new Queue();
 
-  private edgesQueue: {
-    remaining: DashedLine[];
-    counter: number;
-  } = { remaining: [], counter: 0 };
-
-  private nodesPool: RoundedRect[] = [];
-  private edgesPool: DashedLine[] = [];
-
-  private nodesContainer: Container<Container>;
-  private edgesContainer: Container<SimpleRope>;
+  private nodesContainer: Container<RoundedRect>;
+  private edgesContainer: Container<DashedLine>;
 
   constructor({
-    state,
+    map,
     edgesContainer,
     nodesContainer,
   }: {
-    state: NodeState;
-    edgesContainer: Container<SimpleRope>;
-    nodesContainer: Container<Container>;
+    map: NodeMap;
+    edgesContainer: Container<DashedLine>;
+    nodesContainer: Container<RoundedRect>;
   }) {
-    this.state = state;
+    this.map = map;
     this.nodesContainer = nodesContainer;
     this.edgesContainer = edgesContainer;
 
+    this.manageQueue();
+
     Ticker.shared.add(() => this.update());
+    Viewport.getInstance().on("moved", () => {
+      this.collectGarbage();
+      this.manageQueue();
+    });
   }
 
   public update() {
-    this.collectGarbage();
-    this.manageQueue();
     this.chunkLoad();
     this.frameCounter++;
   }
   public isTooFar = (point: Point) => {
     const viewport = Viewport.getInstance();
     return (
-      Math.abs(viewport.center.x - point.x) > this.maxDistance &&
-      Math.abs(viewport.center.y - point.y) > this.maxDistance
+      Math.abs(viewport.center.x - point.x) > this.maxDistance() &&
+      Math.abs(viewport.center.y - point.y) > this.maxDistance()
     );
   };
 
   public collectGarbage() {
-    if (this.frameCounter % (120 * 5) === 0) {
-      this.nodesQueue = { remaining: [], counter: 0 };
-      this.edgesQueue = { remaining: [], counter: 0 };
-      const unrelevantNodes = this.nodesPool.filter((x) =>
-        this.isTooFar(x.getInstance().position)
+    if (this.frameCounter % 120 === 0) {
+      this.nodesQueue.reset();
+      this.edgesQueue.reset();
+
+      const unrelevantNodes = this.nodesContainer.children.filter((rect) =>
+        this.isTooFar(rect.position)
       );
-      const unrelevantEdges = this.edgesPool.filter((line) =>
+      const unrelevantEdges = this.edgesContainer.children.filter((line) =>
         line
           .getEdge()
           ?.getPath()
           .every((point) => this.isTooFar(point))
       );
-      if (!unrelevantEdges) return;
 
-      this.nodesPool = this.nodesPool.filter(
-        (x) => !unrelevantNodes.find((y) => y.id === x.id)
-      );
-      this.edgesPool = this.edgesPool.filter(
-        (x) => !unrelevantEdges.find((y) => y.getEdge().id === x.getEdge().id)
-      );
-      this.edgesContainer.removeChild(
-        ...unrelevantEdges.map((x) => x.getInstance())
-      );
-      this.nodesContainer.removeChild(
-        ...unrelevantNodes.map((x) => x.getInstance())
-      );
+      unrelevantNodes.forEach((node) => {
+        node.getNode().isAvailableForRender = true;
+      });
+      unrelevantEdges.forEach((edge) => {
+        edge.getEdge().isAvailableForRender = true;
+      });
+
+      // console.log(Viewport.getInstance().center);
+
+      this.edgesContainer.removeChild(...unrelevantEdges);
+      this.nodesContainer.removeChild(...unrelevantNodes);
 
       Viewport.removeChildrenFromCulling(
-        ...unrelevantEdges.map((x) => x.getInstance()),
-        ...unrelevantNodes.map((x) => x.getInstance())
+        ...unrelevantEdges,
+        ...unrelevantNodes
       );
     }
   }
 
   public manageQueue() {
-    if (
-      this.frameCounter % (120 * 10) === 0 &&
-      this.nodesPool.length < this.maxEntityCount &&
-      this.edgesQueue.remaining.length < this.maxQueueSize &&
-      this.nodesQueue.remaining.length < this.maxQueueSize
-    ) {
-      const relevantEdges = this.state
-        .nodesToArray()
-        .filter((x) => !this.isTooFar(x.getReadonlyPoint()))
-        .map((x) => x.getEdges())
-        .flat()
-        .filter((x) => {
-          return !this.edgesPool.find((y) => y.getEdge().id === x.id);
-        })
-        .slice(0, this.maxQueueSize);
+    if (this.frameCounter % 60 === 0) {
+      const viewport = Viewport.getInstance();
 
-      const newEdges = relevantEdges.map((x) => new DashedLine({ edge: x }));
-      const newNodes = relevantEdges
-        .map((x) => [x.getNodePair().from, x.getNodePair().to])
-        .flat()
-        .map((x) => new RoundedRect({ node: x }));
+      const { nodes, edges } = this.map.getChunkData(
+        viewport.center,
+        this.renderDistance
+      );
 
-      this.nodesQueue.remaining.push(...newNodes);
-      this.edgesQueue.remaining.push(...newEdges);
+      this.nodesQueue.enqueue(nodes.filter((x) => x.isAvailableForRender));
+      this.edgesQueue.enqueue(edges.filter((x) => x.isAvailableForRender));
     }
   }
-
   public chunkLoad() {
-    if (
-      this.frameCounter % 4 === 0 &&
-      this.nodesPool.length < this.maxEntityCount
-    ) {
-      const nodes = this.nodesQueue.remaining.slice(
-        this.nodesQueue.counter,
-        this.nodesQueue.counter + this.chunkSize
-      );
-      const edges = this.edgesQueue.remaining.slice(
-        this.edgesQueue.counter,
-        this.edgesQueue.counter + this.chunkSize
-      );
-      this.edgesQueue.counter += this.chunkSize;
-      this.nodesQueue.counter += this.chunkSize;
+    if (this.frameCounter % 20 === 0) {
+      const nodes = this.nodesQueue.dequeue(this.batchSize);
+      const edges = this.edgesQueue.dequeue(this.batchSize);
+
       if (nodes.length || edges.length) {
-        this.nodesPool.push(...nodes);
-        this.edgesPool.push(...edges);
+        const rects = nodes.map((node) => {
+          node.isAvailableForRender = false;
+          return new RoundedRect({ node });
+        });
+        const lines = edges.map((edge) => {
+          edge.isAvailableForRender = false;
+          return new DashedLine({ edge });
+        });
 
-        const nodesInstances = nodes.map((x) => x.getInstance());
-        const edgesInstances = edges.map((x) => x.getInstance());
-        nodes.length && this.nodesContainer.addChild(...nodesInstances);
-        edges.length && this.edgesContainer.addChild(...edgesInstances);
+        nodes.length && this.nodesContainer.addChild(...rects);
+        edges.length && this.edgesContainer.addChild(...lines);
 
-        Viewport.addChildrenToCulling(...edgesInstances, ...nodesInstances);
+        Viewport.addChildrenToCulling(...rects, ...lines);
 
-        console.log(`Nodes in container: ${this.nodesPool.length}`);
+        console.log(
+          `Nodes in container: ${this.nodesContainer.children.length} Nodes in queue: ${this.nodesQueue.length}`
+        );
       }
     }
   }

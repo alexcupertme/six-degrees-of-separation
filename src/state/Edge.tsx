@@ -13,6 +13,9 @@ export class Edge {
   private to: Node;
   private _id: string;
 
+  public isHovered: boolean = false;
+  public isAvailableForRender: boolean = true;
+
   constructor({ from, to }: { from: Node; to: Node }) {
     this.from = from;
     this.to = to;

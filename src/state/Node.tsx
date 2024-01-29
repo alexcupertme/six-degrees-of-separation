@@ -5,7 +5,8 @@ import { Edge } from "./Edge";
 export class Node {
   private _point: Point;
   private _edges: Set<Edge>;
-  id: string;
+  public isAvailableForRender: boolean = true;
+  public id: Readonly<string>;
 
   constructor(point: Point, edges: Edge[]) {
     this.id = v4();

@@ -1,5 +1,5 @@
 import { Texture, TilingSprite } from "pixi.js";
-import { Assets } from "../../common";
+import { Assets, Colors } from "../../common";
 import { Application } from "../../pixi/Application";
 import { Viewport } from "../../pixi/Viewport";
 
@@ -21,7 +21,7 @@ export class BackgroundGridLayer {
     this.minViewportVisibilityScale = minViewportVisibilityScale;
     this.tile = new TilingSprite(Texture.from(Assets.Common.Background));
 
-    this.tile.tint = 0xfffffe;
+    this.tile.tint = Colors.BACKGROUND;
     this.tile.tileScale.set(scale, scale);
 
     this.adjustGridPosition();
@@ -34,6 +34,7 @@ export class BackgroundGridLayer {
 
     this.tile.tilePosition.y = -Viewport.getInstance().top;
     this.tile.tilePosition.x = -Viewport.getInstance().left;
+
     this.tile.y = Viewport.getInstance().top;
     this.tile.x = Viewport.getInstance().left;
     this.tile.width =

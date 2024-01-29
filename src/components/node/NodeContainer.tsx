@@ -1,36 +1,35 @@
 import { gsap } from "gsap";
 import { Back } from "gsap/all";
-import { Viewport as PixiViewport } from "pixi-viewport";
 import {
-  Container,
   FederatedPointerEvent,
   Application as PixiApplication,
   Point,
+  Sprite,
+  Texture,
 } from "pixi.js";
-import {
-  BaseActionObject,
-  Interpreter,
-  ResolveTypegenMeta,
-  ServiceMap,
-  StateMachine,
-  TypegenDisabled,
-  interpret,
-} from "xstate";
-import {
-  NodeContext,
-  NodeStateEvents,
-  NodeTypestate,
-  createStateMachine,
-} from "../../state/StateMachine";
+import { Assets } from "../../common";
+import { StateMachine } from "../../state/StateMachine";
+import { ClickParticles } from "../effects/ClickParticles";
 import { MouseButton, NodeEvents, NodeState } from "./../../common/Enums";
 import { Application } from "./../../pixi/Application";
 import { Viewport } from "./../../pixi/Viewport";
 import { Node } from "./../../state/Node";
-import { BackgroundNodeSprite } from "./BackgroundNodeSprite";
 import { InteractiveNodeSprite } from "./InteractiveNodeSprite";
 
+const INITIAL_SCALE = new Point(0.01, 0.01);
 const DEFAULT_SCALE = new Point(0.25, 0.25);
 const SELECTED_SCALE = new Point(0.3, 0.3);
+
+const createInitialAnimation = (to: gsap.TweenTarget) => {
+  return gsap.to(to, {
+    pixi: {
+      scale: DEFAULT_SCALE.x,
+    },
+    duration: 1,
+    ease: Back.easeIn.config(2),
+    paused: true,
+  });
+};
 
 const createBounceAnimation = (to: gsap.TweenTarget) => {
   return gsap.to(to, {
@@ -43,142 +42,126 @@ const createBounceAnimation = (to: gsap.TweenTarget) => {
   });
 };
 
-export class RoundedRect {
+export class RoundedRect extends Sprite {
   private bounceAnimation: gsap.core.Tween;
+  private initialAnimation: gsap.core.Tween;
 
-  private stateMachine: StateMachine<
-    NodeContext,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    NodeStateEvents,
-    NodeTypestate
-  >;
+  private stateMachine: StateMachine;
 
-  // Rewrite to simple State Machine
-  private interpreter: Interpreter<
-    NodeContext,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    NodeStateEvents,
-    NodeTypestate,
-    ResolveTypegenMeta<
-      TypegenDisabled,
-      NodeStateEvents,
-      BaseActionObject,
-      ServiceMap
-    >
-  >;
-
-  private container: Container;
-  private backgroundSprite: BackgroundNodeSprite;
   private interactiveSprite: InteractiveNodeSprite;
 
-  private viewport: PixiViewport;
   private application: PixiApplication;
-
-  private stateValue: NodeState = NodeState.INITIAL;
 
   private nodeReference: Node;
 
   public id: string;
+  public dirty: boolean = false;
 
   constructor({ node }: { node: Node }) {
+    const textureFile = (() => {
+      const samples = [
+        Assets.RoundedRect.MockBackground1,
+        Assets.RoundedRect.MockBackground2,
+        Assets.RoundedRect.MockBackground3,
+        Assets.RoundedRect.MockBackground4,
+      ];
+      return samples[Math.floor(Math.random() * samples.length)];
+    })();
+    super(Texture.from(textureFile));
     this.nodeReference = node;
     this.id = node.id;
 
-    this.container = new Container();
-    this.backgroundSprite = new BackgroundNodeSprite();
     this.interactiveSprite = new InteractiveNodeSprite();
 
-    // TODO: move these props to another classes
-    this.container.addChild(
-      this.backgroundSprite.getInstance(),
-      this.interactiveSprite.getInstance()
-    );
+    this.addChild(this.interactiveSprite);
 
-    this.container.on("pointerover", () => this.handleMouseOver());
-    this.container.on("pointerout", () => this.handleMouseOut());
-    this.container.on("pointerdown", (e) => this.handleMouseDown(e));
-    this.container.on("pointerup", () => this.handleMouseUp());
-    this.container.on("tap", () => this.handleMouseUp());
-    this.container.position = node.getReadonlyPoint();
-    this.container.name = `node-container-${node.id}`;
+    this.on("pointerover", () => this.handleMouseOver());
+    this.on("pointerout", () => this.handleMouseOut());
+    this.on("pointerdown", (e) => this.handleMouseDown(e));
+    this.on("pointerup", () => this.handleMouseUp());
+    this.on("tap", () => this.handleMouseUp());
+    this.position = node.getReadonlyPoint();
+    this.anchor.set(0.5, 0.5);
 
-    this.container.eventMode = "static";
-    this.container.zIndex = 0;
-    this.container.scale = DEFAULT_SCALE;
+    this.eventMode = "static";
+    this.zIndex = 0;
+    this.scale = INITIAL_SCALE;
 
-    this.stateMachine = createStateMachine(node.id);
-    this.interpreter = interpret(this.stateMachine).start();
-    this.interpreter.subscribe((state) =>
-      this.handleStateTransition(state.value as NodeState)
-    );
+    this.bounceAnimation = createBounceAnimation(this);
+    this.initialAnimation = createInitialAnimation(this);
 
-    this.bounceAnimation = createBounceAnimation(this.container);
+    this.stateMachine = new StateMachine(NodeState.INITIAL);
+    this.stateMachine.subscribe((state: NodeState) => {
+      this.handleStateTransition(state);
+    });
+    this.stateMachine.start();
 
     this.application = Application.getInstance();
-    this.viewport = Viewport.getInstance();
-
-    this.application.ticker.add((dt) => this.update(dt));
+    this.application.ticker.add(() => this.update());
   }
 
-  public getInstance(): Container {
-    return this.container;
+  public getNode(): Node {
+    return this.nodeReference;
   }
 
   private handleMouseOver() {
-    this.interpreter.send({ type: NodeEvents.MOUSEOVER });
+    this.stateMachine.send(NodeEvents.MOUSEOVER);
   }
 
   private handleMouseOut() {
-    this.interpreter.send({ type: NodeEvents.MOUSEOUT });
+    this.stateMachine.send(NodeEvents.MOUSEOUT);
   }
 
   private handleMouseDown(e: FederatedPointerEvent) {
     if (e.button === MouseButton.LEFT) {
-      this.interpreter.send({ type: NodeEvents.DRAGSTART });
+      this.stateMachine.send(NodeEvents.DRAGSTART);
     }
   }
 
   private handleMouseUp() {
-    this.interpreter.send({ type: NodeEvents.DRAGEND });
+    this.stateMachine.send(NodeEvents.DRAGEND);
   }
 
   private update() {
-    if (this.stateValue === NodeState.DRAGGING) {
-      this.container.dirty = true;
+    if (this.stateMachine.getCurrentState() === NodeState.DRAGGING) {
+      Viewport.getInstance().eventMode = "auto";
+      this.dirty = true;
       const newPosition = Viewport.localToViewportPoint(
         this.application.renderer.events.pointer.screen
       );
-      this.container.position.set(newPosition.x, newPosition.y);
+      this.position.set(newPosition.x, newPosition.y);
       this.nodeReference.changePoint(newPosition);
     }
-
-    // if (this.viewport.scale.x < 0.3) {
-    //   this.container.eventMode = "none";
-    // } else {
-    //   this.container.eventMode = "static";
-    // }
   }
 
   private handleStateTransition(newValue: NodeState) {
-    this.stateValue = newValue;
     switch (newValue) {
+      case NodeState.INITIAL:
+        this.initialAnimation.play();
+        break;
       case NodeState.IDLE:
         this.interactiveSprite.hide();
         this.bounceAnimation.reverse();
+        this.getNode()
+          .getEdges()
+          .forEach((e) => (e.isHovered = false));
         break;
       case NodeState.HOVERED:
         this.interactiveSprite.show();
         this.interactiveSprite.setIsHovered();
+        this.getNode()
+          .getEdges()
+          .forEach((e) => (e.isHovered = true));
         break;
       case NodeState.CLICKED:
+        ClickParticles.getInstance().pop();
+        Viewport.getInstance().eventMode = "dynamic";
         this.bounceAnimation.play();
         this.interactiveSprite.setIsClicked();
         break;
       case NodeState.DRAGGING:
         this.bounceAnimation.reverse();
-        this.container.zIndex = 1;
+        this.zIndex = 1;
         break;
     }
   }

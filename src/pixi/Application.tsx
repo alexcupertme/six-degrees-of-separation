@@ -1,18 +1,14 @@
-import {
-  IApplicationOptions,
-  ICanvas,
-  Application as PixiApplication,
-} from "pixi.js";
+import * as PIXI from "pixi.js";
 
 export class Application {
   private constructor() {}
-  private static instance: PixiApplication<ICanvas>;
+  private static instance: PIXI.Application<PIXI.ICanvas>;
 
-  private static options: Partial<IApplicationOptions> = {
+  private static options: Partial<PIXI.IApplicationOptions> = {
     antialias: true,
     backgroundAlpha: 0,
     autoDensity: true,
-    // resizeTo: window,
+    resizeTo: window,
     resolution: window.devicePixelRatio,
     hello: true,
     height: window.innerHeight,
@@ -21,10 +17,7 @@ export class Application {
 
   public static getInstance() {
     if (!this.instance) {
-      // const canvas = document.createElement("canvas");
-      // const view = canvas.transferControlToOffscreen();
-      this.instance = new PixiApplication({ ...this.options });
-      // document.body.appendChild(canvas);
+      this.instance = new PIXI.Application({ ...this.options });
     }
     return this.instance;
   }

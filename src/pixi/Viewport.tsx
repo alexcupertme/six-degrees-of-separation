@@ -7,6 +7,7 @@ import { Application } from "./Application";
 export class Viewport {
   private static viewport: PixiViewport;
   private static cullInstance: Simple;
+  private static frameCounter: number = 0;
 
   private static constructionOptions: IViewportOptions = {
     screenWidth: window.innerWidth,
@@ -19,7 +20,7 @@ export class Viewport {
 
   private static options = {
     zoom: {
-      maxHeight: 5000,
+      maxHeight: 20000,
       minHeight: 500,
     },
     drag: {
@@ -35,7 +36,7 @@ export class Viewport {
       this.viewport
         .pinch()
         .wheel()
-        .decelerate()
+        .decelerate({ friction: 0.99 })
         .clampZoom({
           maxHeight: this.options.zoom.maxHeight,
           minHeight: this.options.zoom.minHeight,
@@ -69,7 +70,6 @@ export class Viewport {
   public static addChildrenToCulling(
     ...children: (DisplayObject | Container)[]
   ) {
-    console.log(this.cullInstance.stats());
     children.forEach((c) => this.cullInstance.add(c));
   }
 
@@ -115,6 +115,11 @@ export class Viewport {
   }
 
   private static update() {
+    this.frameCounter++;
+    if (this.frameCounter % 20) {
+      this.viewport.screenHeight = window.innerHeight;
+      this.viewport.screenWidth = window.innerWidth;
+    }
     if (this.viewport.dirty) {
       this.cull();
 
